@@ -714,40 +714,38 @@ listOfLengthBetween lo hi itemFuzzer =
                 -}
                 1 - 1 / (1 + average)
 
-            addItem : Int -> List a -> Fuzzer (List a)
-            addItem length acc =
-                itemFuzzer
-                    |> andThen
-                        (\item ->
-                            go (length + 1) (item :: acc)
-                        )
+            addItem : Int -> Fuzzer (List a)
+            addItem length =
+                map2 (::)
+                    itemFuzzer
+                    (go (length + 1))
 
-            end : List a -> Fuzzer (List a)
-            end acc =
-                constant (List.reverse acc)
+            end : Fuzzer (List a)
+            end =
+                constant []
 
-            go : Int -> List a -> Fuzzer (List a)
-            go length acc =
+            go : Int -> Fuzzer (List a)
+            go length =
                 if length < lo then
                     forcedChoice 1
-                        |> andThen (\_ -> addItem length acc)
+                        |> andThen (\_ -> addItem length)
 
                 else if length == hi then
                     forcedChoice 0
-                        |> andThen (\_ -> end acc)
+                        |> andThen (\_ -> end)
 
                 else
                     weightedBool continueProbability
                         |> andThen
                             (\oneMorePlease ->
                                 if oneMorePlease then
-                                    addItem length acc
+                                    addItem length
 
                                 else
-                                    end acc
+                                    end
                             )
         in
-        go 0 []
+        go 0
 
 
 {-| Given a fuzzer of a type, create a fuzzer of an array of that type.

@@ -10,9 +10,8 @@ import PRNG exposing (PRNG)
 
 maxExhaustiveSize : number
 maxExhaustiveSize =
-    -- -- Picked so that maxExhaustiveSize * maxExhaustiveSize is still < 2^53
-    -- 2 ^ 26
-    2 ^ 10
+    -- Picked so that maxExhaustiveSize * maxExhaustiveSize is still < 2^53
+    2 ^ 26
 
 
 type alias Exhaustive a =

@@ -78,7 +78,7 @@ import Bitwise
 import Char
 import Dict exposing (Dict)
 import Fuzz.Float
-import Fuzz.Internal exposing (Fuzzer(..))
+import Fuzz.Internal exposing (Exhaustive, Fuzzer(..))
 import GenResult exposing (GenResult(..))
 import MicroDictExtra as Dict
 import MicroListExtra as List
@@ -778,288 +778,402 @@ helper when creating more complicated fuzzers.
 -}
 constant : a -> Fuzzer a
 constant x =
-    Fuzzer <|
-        \prng ->
-            Generated
-                { value = x
-                , prng = prng
-                }
+    Fuzzer
+        { exhaustive = exhaustiveSucceed x
+        , generate =
+            \prng ->
+                Generated
+                    { value = x
+                    , prng = prng
+                    }
+        }
 
 
 {-| Map a function over a fuzzer.
 -}
 map : (a -> b) -> Fuzzer a -> Fuzzer b
 map fn (Fuzzer fuzzer) =
-    Fuzzer <|
-        \prng ->
-            case fuzzer prng of
-                Generated g ->
-                    Generated
-                        { value = fn g.value
-                        , prng = g.prng
-                        }
+    Fuzzer
+        { exhaustive =
+            exhaustiveSucceed fn
+                |> exhaustiveAndMap fuzzer.exhaustive
+        , generate =
+            \prng ->
+                case fuzzer.generate prng of
+                    Generated g ->
+                        Generated
+                            { value = fn g.value
+                            , prng = g.prng
+                            }
 
-                Rejected r ->
-                    Rejected r
+                    Rejected r ->
+                        Rejected r
+        }
 
 
 {-| Map over two fuzzers.
 -}
 map2 : (a -> b -> c) -> Fuzzer a -> Fuzzer b -> Fuzzer c
 map2 fn (Fuzzer fuzzerA) (Fuzzer fuzzerB) =
-    Fuzzer <|
-        \prng ->
-            case fuzzerA prng of
-                Generated a ->
-                    case fuzzerB a.prng of
-                        Generated b ->
-                            Generated
-                                { value = fn a.value b.value
-                                , prng = b.prng
-                                }
+    Fuzzer
+        { exhaustive =
+            exhaustiveSucceed fn
+                |> exhaustiveAndMap fuzzerA.exhaustive
+                |> exhaustiveAndMap fuzzerB.exhaustive
+        , generate =
+            \prng ->
+                case fuzzerA.generate prng of
+                    Generated a ->
+                        case fuzzerB.generate a.prng of
+                            Generated b ->
+                                Generated
+                                    { value = fn a.value b.value
+                                    , prng = b.prng
+                                    }
 
-                        Rejected r ->
-                            Rejected r
+                            Rejected r ->
+                                Rejected r
 
-                Rejected r ->
-                    Rejected r
+                    Rejected r ->
+                        Rejected r
+        }
 
 
 {-| Map over three fuzzers.
 -}
 map3 : (a -> b -> c -> d) -> Fuzzer a -> Fuzzer b -> Fuzzer c -> Fuzzer d
 map3 fn (Fuzzer fuzzerA) (Fuzzer fuzzerB) (Fuzzer fuzzerC) =
-    Fuzzer <|
-        \prng ->
-            case fuzzerA prng of
-                Generated a ->
-                    case fuzzerB a.prng of
-                        Generated b ->
-                            case fuzzerC b.prng of
-                                Generated c ->
-                                    Generated
-                                        { value = fn a.value b.value c.value
-                                        , prng = c.prng
-                                        }
+    Fuzzer
+        { exhaustive =
+            exhaustiveSucceed fn
+                |> exhaustiveAndMap fuzzerA.exhaustive
+                |> exhaustiveAndMap fuzzerB.exhaustive
+                |> exhaustiveAndMap fuzzerC.exhaustive
+        , generate =
+            \prng ->
+                case fuzzerA.generate prng of
+                    Generated a ->
+                        case fuzzerB.generate a.prng of
+                            Generated b ->
+                                case fuzzerC.generate b.prng of
+                                    Generated c ->
+                                        Generated
+                                            { value = fn a.value b.value c.value
+                                            , prng = c.prng
+                                            }
 
-                                Rejected r ->
-                                    Rejected r
+                                    Rejected r ->
+                                        Rejected r
 
-                        Rejected r ->
-                            Rejected r
+                            Rejected r ->
+                                Rejected r
 
-                Rejected r ->
-                    Rejected r
+                    Rejected r ->
+                        Rejected r
+        }
 
 
 {-| Map over four fuzzers.
 -}
 map4 : (a -> b -> c -> d -> e) -> Fuzzer a -> Fuzzer b -> Fuzzer c -> Fuzzer d -> Fuzzer e
 map4 fn (Fuzzer fuzzerA) (Fuzzer fuzzerB) (Fuzzer fuzzerC) (Fuzzer fuzzerD) =
-    Fuzzer <|
-        \prng ->
-            case fuzzerA prng of
-                Generated a ->
-                    case fuzzerB a.prng of
-                        Generated b ->
-                            case fuzzerC b.prng of
-                                Generated c ->
-                                    case fuzzerD c.prng of
-                                        Generated d ->
-                                            Generated
-                                                { value = fn a.value b.value c.value d.value
-                                                , prng = d.prng
-                                                }
+    Fuzzer
+        { exhaustive =
+            exhaustiveSucceed fn
+                |> exhaustiveAndMap fuzzerA.exhaustive
+                |> exhaustiveAndMap fuzzerB.exhaustive
+                |> exhaustiveAndMap fuzzerC.exhaustive
+                |> exhaustiveAndMap fuzzerD.exhaustive
+        , generate =
+            \prng ->
+                case fuzzerA.generate prng of
+                    Generated a ->
+                        case fuzzerB.generate a.prng of
+                            Generated b ->
+                                case fuzzerC.generate b.prng of
+                                    Generated c ->
+                                        case fuzzerD.generate c.prng of
+                                            Generated d ->
+                                                Generated
+                                                    { value = fn a.value b.value c.value d.value
+                                                    , prng = d.prng
+                                                    }
 
-                                        Rejected r ->
-                                            Rejected r
+                                            Rejected r ->
+                                                Rejected r
 
-                                Rejected r ->
-                                    Rejected r
+                                    Rejected r ->
+                                        Rejected r
 
-                        Rejected r ->
-                            Rejected r
+                            Rejected r ->
+                                Rejected r
 
-                Rejected r ->
-                    Rejected r
+                    Rejected r ->
+                        Rejected r
+        }
 
 
 {-| Map over five fuzzers.
 -}
 map5 : (a -> b -> c -> d -> e -> f) -> Fuzzer a -> Fuzzer b -> Fuzzer c -> Fuzzer d -> Fuzzer e -> Fuzzer f
 map5 fn (Fuzzer fuzzerA) (Fuzzer fuzzerB) (Fuzzer fuzzerC) (Fuzzer fuzzerD) (Fuzzer fuzzerE) =
-    Fuzzer <|
-        \prng ->
-            case fuzzerA prng of
-                Generated a ->
-                    case fuzzerB a.prng of
-                        Generated b ->
-                            case fuzzerC b.prng of
-                                Generated c ->
-                                    case fuzzerD c.prng of
-                                        Generated d ->
-                                            case fuzzerE d.prng of
-                                                Generated e ->
-                                                    Generated
-                                                        { value = fn a.value b.value c.value d.value e.value
-                                                        , prng = e.prng
-                                                        }
+    Fuzzer
+        { exhaustive =
+            exhaustiveSucceed fn
+                |> exhaustiveAndMap fuzzerA.exhaustive
+                |> exhaustiveAndMap fuzzerB.exhaustive
+                |> exhaustiveAndMap fuzzerC.exhaustive
+                |> exhaustiveAndMap fuzzerD.exhaustive
+                |> exhaustiveAndMap fuzzerE.exhaustive
+        , generate =
+            \prng ->
+                case fuzzerA.generate prng of
+                    Generated a ->
+                        case fuzzerB.generate a.prng of
+                            Generated b ->
+                                case fuzzerC.generate b.prng of
+                                    Generated c ->
+                                        case fuzzerD.generate c.prng of
+                                            Generated d ->
+                                                case fuzzerE.generate d.prng of
+                                                    Generated e ->
+                                                        Generated
+                                                            { value = fn a.value b.value c.value d.value e.value
+                                                            , prng = e.prng
+                                                            }
 
-                                                Rejected r ->
-                                                    Rejected r
+                                                    Rejected r ->
+                                                        Rejected r
 
-                                        Rejected r ->
-                                            Rejected r
+                                            Rejected r ->
+                                                Rejected r
 
-                                Rejected r ->
-                                    Rejected r
+                                    Rejected r ->
+                                        Rejected r
 
-                        Rejected r ->
-                            Rejected r
+                            Rejected r ->
+                                Rejected r
 
-                Rejected r ->
-                    Rejected r
+                    Rejected r ->
+                        Rejected r
+        }
 
 
 {-| Map over six fuzzers.
 -}
 map6 : (a -> b -> c -> d -> e -> f -> g) -> Fuzzer a -> Fuzzer b -> Fuzzer c -> Fuzzer d -> Fuzzer e -> Fuzzer f -> Fuzzer g
 map6 fn (Fuzzer fuzzerA) (Fuzzer fuzzerB) (Fuzzer fuzzerC) (Fuzzer fuzzerD) (Fuzzer fuzzerE) (Fuzzer fuzzerF) =
-    Fuzzer <|
-        \prng ->
-            case fuzzerA prng of
-                Generated a ->
-                    case fuzzerB a.prng of
-                        Generated b ->
-                            case fuzzerC b.prng of
-                                Generated c ->
-                                    case fuzzerD c.prng of
-                                        Generated d ->
-                                            case fuzzerE d.prng of
-                                                Generated e ->
-                                                    case fuzzerF e.prng of
-                                                        Generated f ->
-                                                            Generated
-                                                                { value = fn a.value b.value c.value d.value e.value f.value
-                                                                , prng = f.prng
-                                                                }
+    Fuzzer
+        { exhaustive =
+            exhaustiveSucceed fn
+                |> exhaustiveAndMap fuzzerA.exhaustive
+                |> exhaustiveAndMap fuzzerB.exhaustive
+                |> exhaustiveAndMap fuzzerC.exhaustive
+                |> exhaustiveAndMap fuzzerD.exhaustive
+                |> exhaustiveAndMap fuzzerE.exhaustive
+                |> exhaustiveAndMap fuzzerF.exhaustive
+        , generate =
+            \prng ->
+                case fuzzerA.generate prng of
+                    Generated a ->
+                        case fuzzerB.generate a.prng of
+                            Generated b ->
+                                case fuzzerC.generate b.prng of
+                                    Generated c ->
+                                        case fuzzerD.generate c.prng of
+                                            Generated d ->
+                                                case fuzzerE.generate d.prng of
+                                                    Generated e ->
+                                                        case fuzzerF.generate e.prng of
+                                                            Generated f ->
+                                                                Generated
+                                                                    { value = fn a.value b.value c.value d.value e.value f.value
+                                                                    , prng = f.prng
+                                                                    }
 
-                                                        Rejected r ->
-                                                            Rejected r
+                                                            Rejected r ->
+                                                                Rejected r
 
-                                                Rejected r ->
-                                                    Rejected r
+                                                    Rejected r ->
+                                                        Rejected r
 
-                                        Rejected r ->
-                                            Rejected r
+                                            Rejected r ->
+                                                Rejected r
 
-                                Rejected r ->
-                                    Rejected r
+                                    Rejected r ->
+                                        Rejected r
 
-                        Rejected r ->
-                            Rejected r
+                            Rejected r ->
+                                Rejected r
 
-                Rejected r ->
-                    Rejected r
+                    Rejected r ->
+                        Rejected r
+        }
 
 
 {-| Map over seven fuzzers.
 -}
 map7 : (a -> b -> c -> d -> e -> f -> g -> h) -> Fuzzer a -> Fuzzer b -> Fuzzer c -> Fuzzer d -> Fuzzer e -> Fuzzer f -> Fuzzer g -> Fuzzer h
 map7 fn (Fuzzer fuzzerA) (Fuzzer fuzzerB) (Fuzzer fuzzerC) (Fuzzer fuzzerD) (Fuzzer fuzzerE) (Fuzzer fuzzerF) (Fuzzer fuzzerG) =
-    Fuzzer <|
-        \prng ->
-            case fuzzerA prng of
-                Generated a ->
-                    case fuzzerB a.prng of
-                        Generated b ->
-                            case fuzzerC b.prng of
-                                Generated c ->
-                                    case fuzzerD c.prng of
-                                        Generated d ->
-                                            case fuzzerE d.prng of
-                                                Generated e ->
-                                                    case fuzzerF e.prng of
-                                                        Generated f ->
-                                                            case fuzzerG f.prng of
-                                                                Generated g ->
-                                                                    Generated
-                                                                        { value = fn a.value b.value c.value d.value e.value f.value g.value
-                                                                        , prng = g.prng
-                                                                        }
+    Fuzzer
+        { exhaustive =
+            exhaustiveSucceed fn
+                |> exhaustiveAndMap fuzzerA.exhaustive
+                |> exhaustiveAndMap fuzzerB.exhaustive
+                |> exhaustiveAndMap fuzzerC.exhaustive
+                |> exhaustiveAndMap fuzzerD.exhaustive
+                |> exhaustiveAndMap fuzzerE.exhaustive
+                |> exhaustiveAndMap fuzzerF.exhaustive
+                |> exhaustiveAndMap fuzzerG.exhaustive
+        , generate =
+            \prng ->
+                case fuzzerA.generate prng of
+                    Generated a ->
+                        case fuzzerB.generate a.prng of
+                            Generated b ->
+                                case fuzzerC.generate b.prng of
+                                    Generated c ->
+                                        case fuzzerD.generate c.prng of
+                                            Generated d ->
+                                                case fuzzerE.generate d.prng of
+                                                    Generated e ->
+                                                        case fuzzerF.generate e.prng of
+                                                            Generated f ->
+                                                                case fuzzerG.generate f.prng of
+                                                                    Generated g ->
+                                                                        Generated
+                                                                            { value = fn a.value b.value c.value d.value e.value f.value g.value
+                                                                            , prng = g.prng
+                                                                            }
 
-                                                                Rejected r ->
-                                                                    Rejected r
+                                                                    Rejected r ->
+                                                                        Rejected r
 
-                                                        Rejected r ->
-                                                            Rejected r
+                                                            Rejected r ->
+                                                                Rejected r
 
-                                                Rejected r ->
-                                                    Rejected r
+                                                    Rejected r ->
+                                                        Rejected r
 
-                                        Rejected r ->
-                                            Rejected r
+                                            Rejected r ->
+                                                Rejected r
 
-                                Rejected r ->
-                                    Rejected r
+                                    Rejected r ->
+                                        Rejected r
 
-                        Rejected r ->
-                            Rejected r
+                            Rejected r ->
+                                Rejected r
 
-                Rejected r ->
-                    Rejected r
+                    Rejected r ->
+                        Rejected r
+        }
 
 
 {-| Map over eight fuzzers.
 -}
 map8 : (a -> b -> c -> d -> e -> f -> g -> h -> i) -> Fuzzer a -> Fuzzer b -> Fuzzer c -> Fuzzer d -> Fuzzer e -> Fuzzer f -> Fuzzer g -> Fuzzer h -> Fuzzer i
 map8 fn (Fuzzer fuzzerA) (Fuzzer fuzzerB) (Fuzzer fuzzerC) (Fuzzer fuzzerD) (Fuzzer fuzzerE) (Fuzzer fuzzerF) (Fuzzer fuzzerG) (Fuzzer fuzzerH) =
-    Fuzzer <|
-        \prng ->
-            case fuzzerA prng of
-                Generated a ->
-                    case fuzzerB a.prng of
-                        Generated b ->
-                            case fuzzerC b.prng of
-                                Generated c ->
-                                    case fuzzerD c.prng of
-                                        Generated d ->
-                                            case fuzzerE d.prng of
-                                                Generated e ->
-                                                    case fuzzerF e.prng of
-                                                        Generated f ->
-                                                            case fuzzerG f.prng of
-                                                                Generated g ->
-                                                                    case fuzzerH g.prng of
-                                                                        Generated h ->
-                                                                            Generated
-                                                                                { value = fn a.value b.value c.value d.value e.value f.value g.value h.value
-                                                                                , prng = h.prng
-                                                                                }
+    Fuzzer
+        { exhaustive =
+            exhaustiveSucceed fn
+                |> exhaustiveAndMap fuzzerA.exhaustive
+                |> exhaustiveAndMap fuzzerB.exhaustive
+                |> exhaustiveAndMap fuzzerC.exhaustive
+                |> exhaustiveAndMap fuzzerD.exhaustive
+                |> exhaustiveAndMap fuzzerE.exhaustive
+                |> exhaustiveAndMap fuzzerF.exhaustive
+                |> exhaustiveAndMap fuzzerG.exhaustive
+                |> exhaustiveAndMap fuzzerH.exhaustive
+        , generate =
+            \prng ->
+                case fuzzerA.generate prng of
+                    Generated a ->
+                        case fuzzerB.generate a.prng of
+                            Generated b ->
+                                case fuzzerC.generate b.prng of
+                                    Generated c ->
+                                        case fuzzerD.generate c.prng of
+                                            Generated d ->
+                                                case fuzzerE.generate d.prng of
+                                                    Generated e ->
+                                                        case fuzzerF.generate e.prng of
+                                                            Generated f ->
+                                                                case fuzzerG.generate f.prng of
+                                                                    Generated g ->
+                                                                        case fuzzerH.generate g.prng of
+                                                                            Generated h ->
+                                                                                Generated
+                                                                                    { value = fn a.value b.value c.value d.value e.value f.value g.value h.value
+                                                                                    , prng = h.prng
+                                                                                    }
 
-                                                                        Rejected r ->
-                                                                            Rejected r
+                                                                            Rejected r ->
+                                                                                Rejected r
 
-                                                                Rejected r ->
-                                                                    Rejected r
+                                                                    Rejected r ->
+                                                                        Rejected r
 
-                                                        Rejected r ->
-                                                            Rejected r
+                                                            Rejected r ->
+                                                                Rejected r
 
-                                                Rejected r ->
-                                                    Rejected r
+                                                    Rejected r ->
+                                                        Rejected r
 
-                                        Rejected r ->
-                                            Rejected r
+                                            Rejected r ->
+                                                Rejected r
 
-                                Rejected r ->
-                                    Rejected r
+                                    Rejected r ->
+                                        Rejected r
 
-                        Rejected r ->
-                            Rejected r
+                            Rejected r ->
+                                Rejected r
 
-                Rejected r ->
-                    Rejected r
+                    Rejected r ->
+                        Rejected r
+        }
+
+
+exhaustiveSucceed : a -> Maybe (Exhaustive a)
+exhaustiveSucceed const =
+    Just
+        { count = 1
+        , isExhaustive = True
+        , generate = \_ -> Ok const
+        }
+
+
+exhaustiveAndMap : Maybe (Exhaustive a) -> Maybe (Exhaustive (a -> b)) -> Maybe (Exhaustive b)
+exhaustiveAndMap maybeExhaustive maybePrev =
+    case ( maybeExhaustive, maybePrev ) of
+        ( Just exhaustive, Just prev ) ->
+            let
+                nextCount : Int
+                nextCount =
+                    exhaustive.count * prev.count
+            in
+            if nextCount > Fuzz.Internal.maxExhaustiveSize then
+                Nothing
+
+            else
+                { count = nextCount
+                , isExhaustive = exhaustive.isExhaustive && prev.isExhaustive
+                , generate =
+                    \i ->
+                        let
+                            here : Int
+                            here =
+                                modBy exhaustive.count i
+
+                            there : Int
+                            there =
+                                i // exhaustive.count
+                        in
+                        Result.map2 (<|) (prev.generate there) (exhaustive.generate here)
+                }
+                    |> Just
+
+        _ ->
+            Nothing
 
 
 {-| Map over many fuzzers. This can act as `mapN` for `N > 8`.
@@ -1300,12 +1414,15 @@ are also invalid. Any tests using an invalid fuzzer fail.
 -}
 invalid : String -> Fuzzer a
 invalid reason =
-    Fuzzer <|
-        \prng ->
-            Rejected
-                { reason = reason
-                , prng = prng
-                }
+    Fuzzer
+        { exhaustive = Nothing
+        , generate =
+            \prng ->
+                Rejected
+                    { reason = reason
+                    , prng = prng
+                    }
+        }
 
 
 {-| A fuzzer that only lets through values satisfying the given predicate
@@ -1449,18 +1566,70 @@ what you already have; inside `andThen` you do.
 -}
 andThen : (a -> Fuzzer b) -> Fuzzer a -> Fuzzer b
 andThen fn (Fuzzer fuzzer) =
-    Fuzzer <|
-        \prng ->
-            case fuzzer prng of
-                Generated g ->
-                    let
-                        (Fuzzer newFuzzer) =
-                            fn g.value
-                    in
-                    newFuzzer g.prng
+    Fuzzer
+        { exhaustive =
+            fuzzer.exhaustive
+                |> Maybe.andThen
+                    (\exhaustive ->
+                        List.foldl
+                            (\i ->
+                                Maybe.andThen
+                                    (\prev ->
+                                        case exhaustive.generate i of
+                                            Err _ ->
+                                                Nothing
 
-                Rejected r ->
-                    Rejected r
+                                            Ok a ->
+                                                let
+                                                    (Fuzzer fna) =
+                                                        fn a
+                                                in
+                                                fna.exhaustive
+                                                    |> Maybe.andThen
+                                                        (\fnaExhaustive ->
+                                                            let
+                                                                newCount =
+                                                                    prev.count + fnaExhaustive.count
+                                                            in
+                                                            if newCount > Fuzz.Internal.maxExhaustiveSize then
+                                                                Nothing
+
+                                                            else
+                                                                { count = newCount
+                                                                , isExhaustive = prev.isExhaustive && fnaExhaustive.isExhaustive
+                                                                , generate =
+                                                                    \j ->
+                                                                        if j >= fnaExhaustive.count then
+                                                                            prev.generate (j - fnaExhaustive.count)
+
+                                                                        else
+                                                                            fnaExhaustive.generate j
+                                                                }
+                                                                    |> Just
+                                                        )
+                                    )
+                            )
+                            (Just
+                                { isExhaustive = exhaustive.isExhaustive
+                                , count = 0
+                                , generate = \_ -> Err "elm-test bug: could not generate value in exhaustive andThen"
+                                }
+                            )
+                            (List.range 0 (exhaustive.count - 1))
+                    )
+        , generate =
+            \prng ->
+                case fuzzer.generate prng of
+                    Generated g ->
+                        let
+                            (Fuzzer newFuzzer) =
+                                fn g.value
+                        in
+                        newFuzzer.generate g.prng
+
+                    Rejected r ->
+                        Rejected r
+        }
 
 
 {-| A fuzzer that delays its execution. Handy for recursive types and preventing
@@ -1468,13 +1637,16 @@ infinite recursion.
 -}
 lazy : (() -> Fuzzer a) -> Fuzzer a
 lazy thunk =
-    Fuzzer <|
-        \prng ->
-            let
-                (Fuzzer fuzzer) =
-                    thunk ()
-            in
-            fuzzer prng
+    Fuzzer
+        { exhaustive = Nothing
+        , generate =
+            \prng ->
+                let
+                    (Fuzzer fuzzer) =
+                        thunk ()
+                in
+                fuzzer.generate prng
+        }
 
 
 {-| A fuzzer that shuffles the given list.
@@ -1564,84 +1736,42 @@ Based on the PRNG value, this function:
 -}
 rollDice : Int -> Random.Generator Int -> Fuzzer Int
 rollDice maxValue diceGenerator =
-    Fuzzer <|
-        \prng ->
-            case prng of
-                Random r ->
-                    let
-                        ( diceRoll, newSeed ) =
-                            Random.step diceGenerator r.seed
-                    in
-                    if diceRoll < 0 then
-                        Rejected
-                            { reason = "elm-test bug: generated a choice < 0"
-                            , prng = prng
-                            }
-
-                    else if diceRoll > maxValue then
-                        Rejected
-                            { reason = "elm-test bug: generated a choice > maxChoice"
-                            , prng = prng
-                            }
-
-                    else
-                        Generated
-                            { value = diceRoll
-                            , prng =
-                                Random
-                                    { seed = newSeed
-                                    , run = RandomRun.append diceRoll r.run
-                                    }
-                            }
-
-                Hardcoded h ->
-                    case RandomRun.nextChoice h.unusedPart of
-                        Nothing ->
-                            -- This happens if we simplified too much / in an incompatible way
+    Fuzzer
+        { exhaustive =
+            Just
+                { count = maxValue + 1
+                , generate = Ok
+                , isExhaustive = True
+                }
+        , generate =
+            \prng ->
+                case prng of
+                    Random r ->
+                        let
+                            ( diceRoll, newSeed ) =
+                                Random.step diceGenerator r.seed
+                        in
+                        if diceRoll < 0 then
                             Rejected
-                                { reason = "elm-test internals: hardcoded PRNG run out of numbers"
+                                { reason = "elm-test bug: generated a choice < 0"
                                 , prng = prng
                                 }
 
-                        Just ( hardcodedChoice, restOfChoices ) ->
-                            if hardcodedChoice < 0 then
-                                -- This happens eg. when decrementing after delete shrink
-                                Rejected
-                                    { reason = "elm-test internals: generated a choice < 0"
-                                    , prng = prng
-                                    }
+                        else if diceRoll > maxValue then
+                            Rejected
+                                { reason = "elm-test bug: generated a choice > maxChoice"
+                                , prng = prng
+                                }
 
-                            else if hardcodedChoice > maxValue then
-                                -- This happens eg. when redistributing choices
-                                Rejected
-                                    { reason = "elm-test internals: generated a choice > maxChoice"
-                                    , prng = prng
-                                    }
-
-                            else
-                                Generated
-                                    { value = hardcodedChoice
-                                    , prng = Hardcoded { h | unusedPart = restOfChoices }
-                                    }
-
-
-forcedChoice : Int -> Fuzzer Int
-forcedChoice n =
-    Fuzzer <|
-        \prng ->
-            if n < 0 then
-                Rejected
-                    { reason = "elm-test bug: forcedChoice: n < 0"
-                    , prng = prng
-                    }
-
-            else
-                case prng of
-                    Random r ->
-                        Generated
-                            { value = n
-                            , prng = Random { r | run = RandomRun.append n r.run }
-                            }
+                        else
+                            Generated
+                                { value = diceRoll
+                                , prng =
+                                    Random
+                                        { seed = newSeed
+                                        , run = RandomRun.append diceRoll r.run
+                                        }
+                                }
 
                     Hardcoded h ->
                         case RandomRun.nextChoice h.unusedPart of
@@ -1653,17 +1783,70 @@ forcedChoice n =
                                     }
 
                             Just ( hardcodedChoice, restOfChoices ) ->
-                                if hardcodedChoice /= n then
+                                if hardcodedChoice < 0 then
+                                    -- This happens eg. when decrementing after delete shrink
                                     Rejected
-                                        { reason = "elm-test internals: hardcoded value was not the same as the forced one"
+                                        { reason = "elm-test internals: generated a choice < 0"
+                                        , prng = prng
+                                        }
+
+                                else if hardcodedChoice > maxValue then
+                                    -- This happens eg. when redistributing choices
+                                    Rejected
+                                        { reason = "elm-test internals: generated a choice > maxChoice"
                                         , prng = prng
                                         }
 
                                 else
                                     Generated
-                                        { value = n
+                                        { value = hardcodedChoice
                                         , prng = Hardcoded { h | unusedPart = restOfChoices }
                                         }
+        }
+
+
+forcedChoice : Int -> Fuzzer Int
+forcedChoice n =
+    Fuzzer
+        { exhaustive = exhaustiveSucceed n
+        , generate =
+            \prng ->
+                if n < 0 then
+                    Rejected
+                        { reason = "elm-test bug: forcedChoice: n < 0"
+                        , prng = prng
+                        }
+
+                else
+                    case prng of
+                        Random r ->
+                            Generated
+                                { value = n
+                                , prng = Random { r | run = RandomRun.append n r.run }
+                                }
+
+                        Hardcoded h ->
+                            case RandomRun.nextChoice h.unusedPart of
+                                Nothing ->
+                                    -- This happens if we simplified too much / in an incompatible way
+                                    Rejected
+                                        { reason = "elm-test internals: hardcoded PRNG run out of numbers"
+                                        , prng = prng
+                                        }
+
+                                Just ( hardcodedChoice, restOfChoices ) ->
+                                    if hardcodedChoice /= n then
+                                        Rejected
+                                            { reason = "elm-test internals: hardcoded value was not the same as the forced one"
+                                            , prng = prng
+                                            }
+
+                                    else
+                                        Generated
+                                            { value = n
+                                            , prng = Hardcoded { h | unusedPart = restOfChoices }
+                                            }
+        }
 
 
 {-| We could golf this to ((/=) 0) but this is perhaps more readable.

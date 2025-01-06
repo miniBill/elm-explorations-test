@@ -44,7 +44,7 @@ fi
 
 echo "Compiling the test suite with ELM_HOME=${ELM_HOME}"
 echo -en "${COLOR_OFF}";
-ELM_HOME="${ELM_HOME}" elm make src/Main.elm --output elm.js
+ELM_HOME="${ELM_HOME}" ${ELM:elm} make src/Main.elm --output elm.js
 echo -en "${DIM}";
 
 if [ ! -z ${SEED+x} ]; then
